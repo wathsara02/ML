@@ -11,7 +11,7 @@ The goal of this project is to build a cooperative AI that learns complex strate
 
 *   **PettingZoo AEC Environment**: A strict, turn-based referee system that enforces Omi rules (must-follow-suit, trump hierarchy).
 *   **CTDE Architecture**: "Centralized Training, Decentralized Execution." The AI is trained by an omniscient critic, but plays fair matches during execution using only its private hand and memory.
-*   **Memory-Augmented Observation**: While the policy is feed-forward by default, it receives a flattened history of the last 32 moves, allowing it to "count cards" and track the game state across time.
+*   **Memory-Augmented Observation**: The policy receives a full history of the last 32 moves as a structured sequence. In **LSTM mode**, this is processed step-by-step so agents reason sequentially across the hand — just like a human tracking played cards.
 *   **Action Masking**: The AI is physically blocked from making illegal moves, focusing 100% of its power on strategy.
 *   **Dense Reward System**: A toggleable, high-frequency feedback system for lightning-fast training.
 
@@ -25,7 +25,7 @@ The goal of this project is to build a cooperative AI that learns complex strate
 *   `encoding.py`: Translates cards and game states into numbers for the AI's neural network.
 
 ### 🧠 The AI Brains (`models/`)
-*   `policy.py` (The Actor): Each player's decentralized brain. Uses an LSTM to track history.
+*   `policy.py` (The Actor): Each player's decentralized brain. Supports **feed-forward** (default, fast) and **LSTM** (sequential memory, stronger) modes, switchable via config.
 *   `critic.py` (The Critic): The omniscient coach used only during training to grade plays.
 
 ### 🎓 Training Loop (`marl/` & `scripts/`)
@@ -62,25 +62,41 @@ pytest
 ```
 
 ### 3️⃣ Train Your AI
-Run a fast CPU-based demo:
+Run a fast smoke test to verify the setup:
 ```powershell
 python scripts/train.py --config configs/small.yaml
 ```
-Run the full training session (default):
+Run the full training session (feed-forward, fast):
 ```powershell
 python scripts/train.py --config configs/default.yaml
 ```
+Run with **LSTM for smarter agents** (recommended for best results):
+```powershell
+python scripts/train.py --config configs/lstm.yaml
+```
+Agents trained with LSTM build memory within each 8-trick hand, tracking which cards opponents have played — exactly as a skilled human would.
 
 ### 4️⃣ Evaluate Performance
-Once trained, compare your AI's win rate against a rule-based baseline:
+Compare your trained AI's win rate against a rule-based baseline:
 ```powershell
-python scripts/eval.py --config configs/default.yaml --weights runs/default_cpu/policy_last.pt
+python scripts/eval.py --weights runs/lstm_cpu/policy_last.pt --episodes 100
 ```
 
 ---
 
-## ⚙️ Configuration
-You can customize training speed, model size, and rewarding in `configs/default.yaml`.
+## ⚙️ Configuration & Config Inheritance
+
+All parameters live in `configs/default.yaml`. **Partial configs** like `lstm.yaml` only specify what's *different*, and the system deep-merges them automatically:
+
+| Config | Purpose |
+|---|---|
+| `configs/default.yaml` | Single source of truth for ALL parameters |
+| `configs/lstm.yaml` | Override: enables LSTM memory, saves to `runs/lstm_cpu/` |
+| `configs/small.yaml` | Override: 20 episodes, for quick smoke-tests |
+
+**How it works:** running `--config configs/lstm.yaml` first loads *all* of `default.yaml`, then only overwrites the keys defined in `lstm.yaml`. So changing the learning rate in `default.yaml` applies to every config automatically.
+
+Key parameters to tune in `default.yaml`:
 *   Change `episodes` to train for longer.
 *   Adjust `lr` (learning rate) for faster or more stable convergence.
 *   Configure all reward values in the `reward_shaping` section.

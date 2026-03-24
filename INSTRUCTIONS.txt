@@ -33,13 +33,20 @@ First, ensure you have the required libraries installed:
 Self-training is the process where the AI plays against versions of itself 
 to improve its strategy.
 
-A) Run a Full Training Session (Standard):
+A) Run a Full Training Session (Feed-Forward, standard):
    python scripts/train.py
 
    * By default, this runs for 10,000 episodes using 'configs/default.yaml'.
    * Results and model weights are saved in: runs/default_cpu/
 
-B) Run a Quick Smoke-Test (Fast):
+B) Run with LSTM (recommended for smarter agents):
+   python scripts/train.py --config configs/lstm.yaml
+
+   * Agents build memory within each 8-trick hand, reasoning about which
+     cards opponents have already played -- just like a human would.
+   * Model weights are saved in: runs/lstm_cpu/
+
+C) Run a Quick Smoke-Test (Fast):
    python scripts/train.py --config configs/small.yaml
 
    * This runs a very short session (20 episodes) to verify everything works.
@@ -56,19 +63,43 @@ You can change the AI's "personality" by editing 'configs/default.yaml'.
 
 * To change EPISODES: Edit 'training -> episodes' (10,000 is a good start).
 
+* To enable LSTM: Edit 'model -> recurrent_type' from 'none' to 'lstm'.
+  (Or just use --config configs/lstm.yaml instead.)
+
+-----------------------------------------------------------------------------
+4. HOW THE CONFIG SYSTEM WORKS (Inheritance)
+-----------------------------------------------------------------------------
+All configs inherit from 'default.yaml'. Partial configs like lstm.yaml or
+small.yaml only specify what is DIFFERENT from the default.
+
+When you run:
+   python scripts/train.py --config configs/lstm.yaml
+
+The system automatically:
+  1. Loads ALL parameters from default.yaml
+  2. Overwrites only the keys found in lstm.yaml
+
+This means:
+  - To tune learning rate -> edit default.yaml (applies to ALL runs)
+  - To switch to LSTM    -> use --config configs/lstm.yaml
+  - You never need to duplicate parameters across multiple config files.
+
 -----------------------------------------------------------------------------
 4. EVALUATION (Testing your AI against other bots)
 -----------------------------------------------------------------------------
 Once trained, you can see how good your AI is by playing it against a
 Rule-Based baseline (a bot that follows standard Omi logic).
 
-A) Evaluate vs. Rule-Based Bot (Standard):
-   python scripts/eval.py --weights runs/default_cpu/policy_last.pt --episodes 100
+A) Evaluate LSTM model vs. Rule-Based Bot:
+   python scripts/eval.py --weights runs/lstm_cpu/policy_last.pt --episodes 100
 
 B) Evaluate vs. Random Bot:
-   python scripts/eval.py --weights runs/default_cpu/policy_last.pt --baseline random --episodes 100
+   python scripts/eval.py --weights runs/lstm_cpu/policy_last.pt --baseline random --episodes 100
 
-* Results are printed to the terminal and saved in 'runs/default_run/evaluation_summary.csv'.
+C) Evaluate a feed-forward model:
+   python scripts/eval.py --weights runs/default_cpu/policy_last.pt --episodes 100
+
+* Results are printed to the terminal and saved in 'runs/<exp_name>/evaluation_summary.csv'.
 
 -----------------------------------------------------------------------------
 5. EXPORTING & DEPLOYING
