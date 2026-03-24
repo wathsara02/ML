@@ -18,9 +18,6 @@ from omi_env import rules, encoding
 from utils import build_policy, ensure_dir, get_device, load_config, set_seed, write_csv_row
 
 
-def load_config(path: str) -> dict:
-    with open(path, "r") as f:
-        return yaml.safe_load(f)
 
 
 def build_trainer(cfg: dict, device: torch.device):

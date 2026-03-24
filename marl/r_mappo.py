@@ -38,6 +38,12 @@ class MAPPOTrainer:
         buffer = AgentBuffer(self.gamma, self.gae_lambda, self.device)
         obs_dict = env.reset()
         done = False
+
+        # Initialise one hidden state per agent; reset at episode start
+        hidden_states = {
+            i: self.policy.init_hidden(1, self.device) for i in range(4)
+        }
+
         while not done:
             agent_name = env.agent_selection
             agent_id = int(agent_name.split("_")[1])
@@ -47,7 +53,12 @@ class MAPPOTrainer:
             mask_tensor = torch.from_numpy(obs["action_mask"]).float().unsqueeze(0).to(self.device)
 
             with torch.no_grad():
-                logits, _ = self.policy(obs_tensor, hist_tensor, None, action_mask=mask_tensor)
+                logits, new_hidden = self.policy(
+                    obs_tensor, hist_tensor,
+                    hidden_states[agent_id],
+                    action_mask=mask_tensor,
+                )
+                hidden_states[agent_id] = new_hidden
                 action, probs = masked_sample(logits, mask_tensor, deterministic=False)
                 logprob = torch.log(torch.gather(probs, -1, action.unsqueeze(-1)).squeeze(-1) + 1e-8)
                 central_state = encode_central_state(env.state()).to(self.device)

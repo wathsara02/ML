@@ -113,8 +113,9 @@ def main():
 
     for ep in range(total_eps):
         env.reset(seed=cfg["seed"] + ep)  # deterministic but varied
-        # Feed-forward policy: no hidden state needed
         done = False
+        # Initialise per-agent hidden states (resets each episode)
+        hidden_states = {i: policy.init_hidden(1, device) for i in range(4)}
         while not done:
             agent_name = env.agent_selection
             agent_id = int(agent_name.split("_")[1])
@@ -126,6 +127,13 @@ def main():
             if agent_id in (1, 3):
                 action = baseline_agent.act(obs)
             else:
+                with torch.no_grad():
+                    logits, new_hidden = policy(
+                        obs_tensor, hist_tensor,
+                        hidden_states[agent_id],
+                        action_mask=mask,
+                    )
+                    hidden_states[agent_id] = new_hidden
                 action = select_action(policy, obs_tensor, hist_tensor, mask, device, args.deterministic)
             env.step(int(action))
             done = all(env.terminations.values())

@@ -15,7 +15,7 @@ device: cpu
 # ---------------------------------------------------------------------------
 model:
   recurrent_hidden_size: 128   # hidden units for policy encoder & FF core
-  recurrent_type: none         # "none" = feed-forward (default); "lstm" not yet implemented
+  recurrent_type: none         # "none" = feed-forward; "lstm" = LSTM with per-hand hidden state
   critic_hidden_size: 128      # hidden units for CentralCritic MLP
 
 # ---------------------------------------------------------------------------
