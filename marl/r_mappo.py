@@ -69,7 +69,7 @@ class MAPPOTrainer:
 
             env.step(int(action.item()))
             buffer.storage[agent_id][-1]["reward"] = env.rewards.get(agent_name, 0.0)
-            done = env._terminated
+            done = all(env.terminations.values())
 
         final_rewards = {i: env.rewards[f"player_{i}"] for i in range(4)}
         buffer.finalize(final_rewards)
@@ -79,6 +79,8 @@ class MAPPOTrainer:
         return transitions, episode_info
 
     def update(self, transitions: List[dict]):
+        if not transitions:
+            return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
         obs = torch.tensor([t["obs"] for t in transitions], dtype=torch.float32, device=self.device)
         hist = torch.tensor([t["history"] for t in transitions], dtype=torch.float32, device=self.device)
         masks = torch.tensor([t["action_mask"] for t in transitions], dtype=torch.float32, device=self.device)

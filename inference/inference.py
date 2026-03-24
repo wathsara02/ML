@@ -59,6 +59,6 @@ def load_agent(weights_path: str, config_path: str, device: Optional[torch.devic
         hidden_size=cfg["model"].get("recurrent_hidden_size", 128),
         recurrent_type=cfg["model"]["recurrent_type"],
     )
-    state_dict = torch.load(weights_path, map_location=device)
+    state_dict = torch.load(weights_path, map_location=device, weights_only=True)
     policy.load_state_dict(state_dict)
     return InferenceAgent(policy, device)

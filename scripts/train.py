@@ -12,11 +12,10 @@ import torch
 import yaml
 
 from marl.r_mappo import MAPPOTrainer
-from models.policy import PolicyNet
 from models.critic import CentralCritic, encode_central_state
 from omi_env.env import OmiEnv
 from omi_env import rules, encoding
-from utils import ensure_dir, get_device, set_seed, write_csv_row
+from utils import build_policy, ensure_dir, get_device, load_config, set_seed, write_csv_row
 
 
 def load_config(path: str) -> dict:
@@ -25,17 +24,14 @@ def load_config(path: str) -> dict:
 
 
 def build_trainer(cfg: dict, device: torch.device):
-    env = OmiEnv(seed=cfg["seed"], reward_shaping=cfg["training"].get("reward_shaping", False))
-    env.reset()
-    obs_dim = env.observation_spaces[env.agents[0]]["observation"].shape[0]
-    history_dim = encoding.HISTORY_LEN * encoding.HISTORY_FEAT_DIM
-    policy = PolicyNet(
-        obs_dim=obs_dim,
-        history_dim=history_dim,
-        action_dim=rules.ACTION_DIM,
-        hidden_size=cfg["model"]["recurrent_hidden_size"],
-        recurrent_type=cfg["model"]["recurrent_type"],
+    reward_cfg = cfg.get("reward_shaping", {})
+    env = OmiEnv(
+        seed=cfg["seed"],
+        reward_shaping=reward_cfg.get("enabled", False),
+        rewards_dict=reward_cfg
     )
+    env.reset()
+    policy, _, _ = build_policy(cfg, device)
     dummy_state = encode_central_state(env.state())
     critic = CentralCritic(input_dim=dummy_state.shape[0], hidden_size=cfg["model"]["critic_hidden_size"])
     trainer = MAPPOTrainer(policy, critic, cfg["algo"], device)
@@ -88,7 +84,7 @@ def log_block(progress_pct, episodes_done, total_episodes, block_count, team_a, 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="configs/small.yaml")
+    parser.add_argument("--config", type=str, default="configs/default.yaml")
     args = parser.parse_args()
     cfg = load_config(args.config)
     set_seed(cfg["seed"])

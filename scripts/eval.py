@@ -12,30 +12,22 @@ import yaml
 
 from baselines.rule_based_agent import RuleBasedAgent
 from baselines.random_agent import RandomLegalAgent
-from models.policy import PolicyNet
 from omi_env.env import OmiEnv
 from omi_env import rules, encoding
-from utils import ensure_dir, get_device, set_seed, write_csv_row, bootstrap_confidence_interval
-
-
-def load_config(path: str) -> dict:
-    with open(path, "r") as f:
-        return yaml.safe_load(f)
+from utils import (
+    build_policy,
+    bootstrap_confidence_interval,
+    ensure_dir,
+    get_device,
+    load_config,
+    set_seed,
+    write_csv_row,
+)
 
 
 def load_policy(cfg: dict, device: torch.device, weights: str):
-    env = OmiEnv(seed=cfg["seed"])
-    env.reset()
-    obs_dim = env.observation_spaces[env.agents[0]]["observation"].shape[0]
-    history_dim = encoding.HISTORY_LEN * encoding.HISTORY_FEAT_DIM
-    policy = PolicyNet(
-        obs_dim=obs_dim,
-        history_dim=history_dim,
-        action_dim=rules.ACTION_DIM,
-        hidden_size=cfg["model"]["recurrent_hidden_size"],
-        recurrent_type=cfg["model"]["recurrent_type"],
-    ).to(device)
-    policy.load_state_dict(torch.load(weights, map_location=device))
+    policy, _, _ = build_policy(cfg, device)
+    policy.load_state_dict(torch.load(weights, map_location=device, weights_only=True))
     policy.eval()
     return policy
 
@@ -91,7 +83,7 @@ def log_block(progress_pct, episodes_done, block_count, agent_wins, baseline_win
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="configs/small.yaml")
+    parser.add_argument("--config", type=str, default="configs/default.yaml")
     parser.add_argument("--weights", type=str, required=True, help="Path to policy weights")
     parser.add_argument("--episodes", type=int, default=50)
     parser.add_argument("--baseline", type=str, choices=["rule", "random"], default="rule")
@@ -136,7 +128,7 @@ def main():
             else:
                 action = select_action(policy, obs_tensor, hist_tensor, mask, device, args.deterministic)
             env.step(int(action))
-            done = env._terminated
+            done = all(env.terminations.values())
 
         info = next(iter(env.infos.values()))
         winner = info.get("winner_team", -1)

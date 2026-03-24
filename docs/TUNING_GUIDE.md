@@ -14,9 +14,13 @@ What to tune first
 - `recurrent_hidden_size`: scale up if the agent underfits long histories; scale down for speed on CPU.
 - `recurrent_type`: try `gru` if LSTM states feel heavy; change in `configs/*.yaml`.
 
-Reward shaping toggles (minimal)
---------------------------------
-Current setup only uses terminal win/loss rewards. If you add shaping (e.g., per-trick reward), keep magnitudes small (<0.2) and document the change; adjust `gamma`/`gae_lambda` accordingly.
+Reward shaping tuning
+----------------------
+The new dense reward system (`reward_shaping: true`) adds several new variables to tune in `omi_env/env.py`:
+- **`TRICK_REWARD` (0.1)**: If the agent focuses *only* on the current trick and ignores the total game outcome, lower this value.
+- **`OVERPLAY_PENALTY` (0.05)**: If the agent becomes too hesitant to take a trick even when it's strategically necessary, lower this. If it wastes too many high cards, raise it.
+- **Margin scaling**: The final reward `(tricks - 4) / 4` provides a smoother gradient. If you want the agent to prioritize *any* win over a "big" win, switch back to a flat `+1/-1`.
+- **`DECLARER_BONUS` (0.1)**: Raise this if you want the trump-calling player to be more aggressive in their suit selection.
 
 Symptom → Fix
 -------------

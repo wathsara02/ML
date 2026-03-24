@@ -110,7 +110,7 @@ def test_reward_shaping_logic():
     env.step(env.hands[0][0]) # p0 plays HJ. Team 0 (p0) is winning.
     env.step(env.hands[1][0]) # p1 plays H7. Team 0 (p0) is still winning.
     # Now p2's turn. HJ (11) is winning. p2 has H8 (8) and HA (14).
-    # p8 is a "safe" move because HJ still wins.
+    # H8 is a "safe" move because HJ still wins.
     # If p2 plays HA, it's an OVERPLAY.
     env.step(env.hands[2][1]) # p2 plays HA.
     assert env._cumulative_rewards["player_2"] == -0.05

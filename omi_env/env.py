@@ -20,14 +20,28 @@ from pettingzoo.utils import agent_selector
 
 from . import encoding, rules
 
+# Default reward values (used if not provided in config)
+DEFAULT_REWARDS = {
+    "illegal_action_penalty": 0.1,
+    "overplay_penalty": 0.05,
+    "trick_reward": 0.1,
+    "cap_bonus": 0.5,
+    "declarer_bonus": 0.1,
+    "cap_penalty": 0.5,
+}
+
 
 class OmiEnv(AECEnv):
     metadata = {"render.modes": ["human"], "name": "omi_v0"}
 
-    def __init__(self, seed: int = 0, reward_shaping: bool = False):
+    def __init__(self, seed: int = 0, reward_shaping: bool = False, rewards_dict: Optional[dict] = None):
         super().__init__()
         self._seed = seed
         self.reward_shaping = reward_shaping
+        self.rewards_cfg = DEFAULT_REWARDS.copy()
+        if rewards_dict:
+            self.rewards_cfg.update(rewards_dict)
+
         self.rng = random.Random(seed)
         self.agents = [f"player_{i}" for i in range(4)]
         self.possible_agents = self.agents[:]
@@ -134,7 +148,7 @@ class OmiEnv(AECEnv):
         if mask[action] == 0:
             self._illegal_actions += 1
             if self.reward_shaping:
-                self.rewards[agent] -= 0.1  # ILLEGAL_ACTION_PENALTY
+                self.rewards[agent] += self.rewards_cfg["illegal_action_penalty"]
             # For strictness, ignore the action by selecting a legal fallback
             legal_indices = [i for i, v in enumerate(mask) if v == 1]
             action = legal_indices[0]
@@ -158,7 +172,7 @@ class OmiEnv(AECEnv):
                     actual_temp_trick = self.current_trick + [(agent_id, action)]
                     actual_temp_winner = rules.resolve_trick(actual_temp_trick, self.lead_suit, self.trump_suit)
                     if actual_temp_winner == agent_id:
-                        self.rewards[agent] -= 0.05  # OVERPLAY_PENALTY
+                        self.rewards[agent] += self.rewards_cfg["overplay_penalty"]
 
         advance_turn = True
 
@@ -205,7 +219,7 @@ class OmiEnv(AECEnv):
                     team_winning = rules.team_for_player(winner)
                     for ag_id, ag_name in enumerate(self.agents):
                         if rules.team_for_player(ag_id) == team_winning:
-                            self.rewards[ag_name] += 0.1  # TRICK_REWARD
+                            self.rewards[ag_name] += self.rewards_cfg["trick_reward"]
 
                 self.current_trick = []
                 self.lead_suit = None
@@ -244,11 +258,11 @@ class OmiEnv(AECEnv):
                         my_team_tricks = self.tricks_won[ag_team]
                         reward = (my_team_tricks - 4) / 4.0
                         if my_team_tricks == 8:
-                            reward += 0.5  # CAP_BONUS
-                        
+                            reward += self.rewards_cfg["cap_bonus"]
+
                         # Trump declarer bonus
                         if ag_id == declarer_id:
-                            reward += 0.1  # DECLARER_BONUS
+                            reward += self.rewards_cfg["declarer_bonus"]
                     else:
                         reward = 1.0
                 else:
@@ -256,7 +270,7 @@ class OmiEnv(AECEnv):
                         opp_team_tricks = self.tricks_won[1 - ag_team]
                         reward = -(opp_team_tricks - 4) / 4.0
                         if opp_team_tricks == 8:
-                            reward -= 0.5  # CAP_PENALTY
+                            reward += self.rewards_cfg["cap_penalty"]
                     else:
                         reward = -1.0
                 self.rewards[ag] = reward
@@ -279,13 +293,14 @@ class OmiEnv(AECEnv):
         self.rewards = {agent: 0.0 for agent in self.agents}
 
     def _was_dead_step(self, action):
-        if action is not None:
-            raise ValueError("Agent is dead but passed a non-None action")
-        
+        """Called by PettingZoo when a terminated agent is stepped.
+
+        Per PettingZoo convention the action is silently ignored; the agent
+        simply advances the turn without side-effects.
+        """
         agent = self.agent_selection
         self.rewards[agent] = 0.0
         self._cumulative_rewards[agent] = 0.0
-        
         self.agent_selection = self.agent_selector.next()
         self._accumulate_rewards()
         return None

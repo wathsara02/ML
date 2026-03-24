@@ -11,7 +11,7 @@ The goal of this project is to build a cooperative AI that learns complex strate
 
 *   **PettingZoo AEC Environment**: A strict, turn-based referee system that enforces Omi rules (must-follow-suit, trump hierarchy).
 *   **CTDE Architecture**: "Centralized Training, Decentralized Execution." The AI is trained by an omniscient critic, but plays fair matches during execution using only its private hand and memory.
-*   **Recurrent Brains (LSTM)**: Each agent has an LSTM memory, allowing it to "count cards" by remembering what has been played earlier in the match.
+*   **Memory-Augmented Observation**: While the policy is feed-forward by default, it receives a flattened history of the last 32 moves, allowing it to "count cards" and track the game state across time.
 *   **Action Masking**: The AI is physically blocked from making illegal moves, focusing 100% of its power on strategy.
 *   **Dense Reward System**: A toggleable, high-frequency feedback system for lightning-fast training.
 
@@ -36,17 +36,14 @@ The goal of this project is to build a cooperative AI that learns complex strate
 
 ---
 
-## 🏆 Improved Rewarding System
-This project features a high-density reward system that can be toggled in your config.
+All rewards are fully tunable in `configs/default.yaml`. To use these shaped rewards, ensure `reward_shaping -> enabled: true` is set.
 
 *   **Trick Rewards (+0.1)**: Immediate feedback for winning a trick as a team.
 *   **Illegal Move Penalty (-0.1)**: Teaches the AI the game rules faster.
-*   **Over-playing Penalty (-0.05)**: Discourages wasting high cards when a teammate is already winning the trick. **Only triggers if a choice was available!**
+*   **Over-playing Penalty (-0.05)**: Discourages wasting high cards when a teammate is already winning the trick.
 *   **Margin-based Final Wins**: Rewards are scaled by the margin of victory (e.g., winning 7-1 is better than 5-3).
 *   **Trump Declarer Bonus (+0.1)**: Incentivizes the declarer to call the most effective trump suit.
-
-> [!TIP]
-> Toggle this in your configuration using `reward_shaping: true`.
+*   **Cap Penalty (-0.5)**: A major penalty if a team loses all 8 tricks.
 
 ---
 
@@ -86,7 +83,8 @@ python scripts/eval.py --config configs/default.yaml --weights runs/default_cpu/
 You can customize training speed, model size, and rewarding in `configs/default.yaml`.
 *   Change `episodes` to train for longer.
 *   Adjust `lr` (learning rate) for faster or more stable convergence.
-*   Set `reward_shaping: true` to use the improved dense feedback system.
+*   Configure all reward values in the `reward_shaping` section.
+*   Set `enabled: true` under `reward_shaping` to use the dense feedback system.
 
 ---
 

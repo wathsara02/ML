@@ -10,41 +10,24 @@ if str(REPO_ROOT) not in sys.path:
 import torch
 import yaml
 
-from models.policy import PolicyNet
-from omi_env.env import OmiEnv
 from omi_env import rules, encoding
-from utils import ensure_dir, get_device
-
-
-def load_config(path: str) -> dict:
-    with open(path, "r") as f:
-        return yaml.safe_load(f)
+from utils import build_policy, ensure_dir, get_device, load_config
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="configs/small.yaml")
+    parser.add_argument("--config", type=str, default="configs/default.yaml")
     parser.add_argument("--weights", type=str, required=True, help="Trained policy weights path")
-    parser.add_argument("--output_dir", type=str, default="artifacts")
+    parser.add_argument("--output_dir", type=str, default=None, help="Override export output directory")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     device = get_device(cfg.get("device", "cpu") == "cuda")
-    env = OmiEnv(seed=cfg["seed"])
-    env.reset()
-    obs_dim = env.observation_spaces[env.agents[0]]["observation"].shape[0]
-    history_dim = encoding.HISTORY_LEN * encoding.HISTORY_FEAT_DIM
-    policy = PolicyNet(
-        obs_dim=obs_dim,
-        history_dim=history_dim,
-        action_dim=rules.ACTION_DIM,
-        hidden_size=cfg["model"]["recurrent_hidden_size"],
-        recurrent_type=cfg["model"]["recurrent_type"],
-    ).to(device)
-    policy.load_state_dict(torch.load(args.weights, map_location=device))
+    policy, obs_dim, history_dim = build_policy(cfg, device)
+    policy.load_state_dict(torch.load(args.weights, map_location=device, weights_only=True))
     policy.eval()
 
-    out_dir = Path(args.output_dir)
+    out_dir = Path(args.output_dir or cfg.get("export", {}).get("output_dir", "artifacts"))
     ensure_dir(out_dir)
     torch.save(policy.state_dict(), out_dir / "policy_agent.pt")
 

@@ -3,10 +3,12 @@ from __future__ import annotations
 import csv
 import os
 import random
-from typing import Dict, Tuple
+from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
+import yaml
 
 
 def set_seed(seed: int):
@@ -23,7 +25,8 @@ def get_device(prefer_cuda: bool = False) -> torch.device:
     return torch.device("cpu")
 
 
-def ensure_dir(path: str):
+def ensure_dir(path):
+    """Create *path* (and any missing parents) if it doesn't already exist."""
     os.makedirs(path, exist_ok=True)
 
 
@@ -58,3 +61,34 @@ def bootstrap_confidence_interval(data, num_bootstrap: int = 2000, alpha: float 
     lower = np.percentile(samples, 100 * (alpha / 2))
     upper = np.percentile(samples, 100 * (1 - alpha / 2))
     return float(lower), float(upper)
+
+
+# ---------------------------------------------------------------------------
+# Shared config / model helpers
+# ---------------------------------------------------------------------------
+
+def load_config(path) -> dict:
+    """Load a YAML config file and return it as a plain dict."""
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
+
+def build_policy(cfg: dict, device: torch.device):
+    """
+    Construct a PolicyNet from *cfg* without depending on a live environment.
+
+    Returns (policy, obs_dim, history_dim).
+    """
+    from models.policy import PolicyNet
+    from omi_env import encoding, rules
+
+    obs_dim = encoding.observation_length()
+    history_dim = encoding.HISTORY_LEN * encoding.HISTORY_FEAT_DIM
+    policy = PolicyNet(
+        obs_dim=obs_dim,
+        history_dim=history_dim,
+        action_dim=rules.ACTION_DIM,
+        hidden_size=cfg["model"]["recurrent_hidden_size"],
+        recurrent_type=cfg["model"]["recurrent_type"],
+    ).to(device)
+    return policy, obs_dim, history_dim

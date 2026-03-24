@@ -1,20 +1,67 @@
+# =============================================================================
+# DEFAULT TRAINING CONFIGURATION
+# All parameters live here. Override specific values with a smaller yaml and pass
+# it via --config (e.g. configs/small.yaml for quick smoke-tests).
+# =============================================================================
+
+# Reproducibility
 seed: 42
+
+# Hardware: "cpu" or "cuda"
 device: cpu
+
+# ---------------------------------------------------------------------------
+# Model architecture
+# ---------------------------------------------------------------------------
 model:
-  recurrent_hidden_size: 128
-  recurrent_type: none
-  critic_hidden_size: 128
+  recurrent_hidden_size: 128   # hidden units for policy encoder & FF core
+  recurrent_type: none         # "none" = feed-forward (default); "lstm" not yet implemented
+  critic_hidden_size: 128      # hidden units for CentralCritic MLP
+
+# ---------------------------------------------------------------------------
+# PPO / MAPPO algorithm hyper-parameters
+# ---------------------------------------------------------------------------
 algo:
-  lr: 0.0003
-  clip_range: 0.2
-  entropy_coef: 0.02
-  value_coef: 0.5
-  gae_lambda: 0.95
-  gamma: 0.99
-  batch_size: 128
-  ppo_epochs: 4
-  max_grad_norm: 0.5
+  lr: 0.0003              # Adam learning rate (shared for policy & critic)
+  clip_range: 0.2         # PPO clipping epsilon
+  entropy_coef: 0.02      # entropy bonus coefficient (encourages exploration)
+  value_coef: 0.5         # value loss coefficient in combined loss
+  gae_lambda: 0.95        # GAE lambda (bias-variance trade-off)
+  gamma: 0.99             # discount factor
+  batch_size: 128         # mini-batch size per PPO epoch
+  ppo_epochs: 4           # number of PPO update epochs per episode batch
+  max_grad_norm: 0.5      # gradient clipping norm
+
+# ---------------------------------------------------------------------------
+# Training loop
+# ---------------------------------------------------------------------------
 training:
-  episodes: 10000
-  exp_name: default_cpu
-  reward_shaping: false
+  episodes: 10000         # total self-play episodes
+  exp_name: default_cpu   # run directory name under runs/
+  log_interval: 1000      # log & write CSV every N episodes (block_size = episodes / 10 if 0)
+
+# ---------------------------------------------------------------------------
+# Reward Shaping — tune these values to change agent behaviour
+# ---------------------------------------------------------------------------
+reward_shaping:
+  enabled: false          # set to true to use these shaped rewards
+  illegal_action_penalty: -0.1 # subtracted when agent picks an illegal action
+  overplay_penalty: -0.05      # subtracted when an agent trumps its own team (takes trick from teammate)
+  trick_reward: 0.1            # added to both teammates when their team wins a trick
+  cap_bonus: 0.5               # added when winning team captures all 8 tricks (A "Cap")
+  declarer_bonus: 0.1          # added to the trump declarer on a win
+  cap_penalty: -0.5            # subtracted when the losing team was swept (0 tricks)
+
+# ---------------------------------------------------------------------------
+# Evaluation (used by scripts/eval.py)
+# ---------------------------------------------------------------------------
+eval:
+  episodes: 200           # number of evaluation episodes
+  baseline: rule          # "rule" = RuleBasedAgent, "random" = RandomLegalAgent
+  deterministic: true     # use argmax action selection during eval
+
+# ---------------------------------------------------------------------------
+# Export (used by scripts/export.py)
+# ---------------------------------------------------------------------------
+export:
+  output_dir: artifacts   # directory to write policy_agent.pt, config.json, VERSION

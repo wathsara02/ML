@@ -1,14 +1,15 @@
-from __future__ import annotations
-
-"""Policy network.
-
-Important note:
-This project intentionally defaults to a **feed-forward** policy (recurrent_type="none").
-The environment already provides explicit history features (played cards / trick context),
-so an RNN is not required for strong performance and it greatly simplifies PPO training.
-
-If you want to re-enable recurrence later, implement *sequence-based* PPO updates.
 """
+Policy network.
+
+This project intentionally defaults to a **feed-forward** policy
+(recurrent_type="none"). The environment already provides explicit history
+features (played cards / trick context), so an RNN is not required for strong
+performance and it greatly simplifies PPO training.
+
+To re-enable recurrence later, implement sequence-based PPO updates.
+"""
+
+from __future__ import annotations
 
 from typing import Optional, Tuple
 
