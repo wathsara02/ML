@@ -25,7 +25,6 @@ def encode_central_state(state: dict) -> torch.Tensor:
     # Reuse encoding helpers instead of duplicating one-hot logic here
     hand_vecs = []
     for h in hands:
-        vec = encoding.card_one_hot(h[0]) * 0.0  # zero vector of right size
         vec = [0.0] * rules.NUM_CARDS
         for c in h:
             vec[c] = 1.0
