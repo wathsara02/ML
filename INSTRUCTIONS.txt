@@ -1,0 +1,78 @@
+=============================================================================
+           INTELLIGENT OMI: HOW TO RUN AND USE ALL FEATURES
+=============================================================================
+
+This guide provides the exact commands needed to train, evaluate, and use
+your Intelligent Omi AI agents.
+
+-----------------------------------------------------------------------------
+1. INSTALLATION & SETUP
+-----------------------------------------------------------------------------
+First, ensure you have the required libraries installed:
+
+   pip install -r requirements.txt
+
+-----------------------------------------------------------------------------
+2. SELF-TRAINING (Teaching the AI to play)
+-----------------------------------------------------------------------------
+Self-training is the process where the AI plays against versions of itself 
+to improve its strategy.
+
+A) Run a Full Training Session (Standard):
+   python scripts/train.py
+
+   * By default, this runs for 10,000 episodes using 'configs/default.yaml'.
+   * Results and model weights are saved in: runs/default_cpu/
+
+B) Run a Quick Smoke-Test (Fast):
+   python scripts/train.py --config configs/small.yaml
+
+   * This runs a very short session (20 episodes) to verify everything works.
+
+-----------------------------------------------------------------------------
+3. TUNING THE AI (Changing Rewards & Rules)
+-----------------------------------------------------------------------------
+You can change the AI's "personality" by editing 'configs/default.yaml'.
+
+* To change REWARDS: Look for the 'reward_shaping' section.
+  - Set 'enabled: true' to use custom rewards.
+  - Penalties should be NEGATIVE (e.g., illegal_action_penalty: -0.1).
+  - Rewards should be POSITIVE (e.g., trick_reward: 0.1).
+
+* To change EPISODES: Edit 'training -> episodes' (10,000 is a good start).
+
+-----------------------------------------------------------------------------
+4. EVALUATION (Testing your AI against other bots)
+-----------------------------------------------------------------------------
+Once trained, you can see how good your AI is by playing it against a
+Rule-Based baseline (a bot that follows standard Omi logic).
+
+A) Evaluate vs. Rule-Based Bot (Standard):
+   python scripts/eval.py --weights runs/default_cpu/policy_last.pt --episodes 100
+
+B) Evaluate vs. Random Bot:
+   python scripts/eval.py --weights runs/default_cpu/policy_last.pt --baseline random --episodes 100
+
+* Results are printed to the terminal and saved in 'runs/default_run/evaluation_summary.csv'.
+
+-----------------------------------------------------------------------------
+5. EXPORTING & DEPLOYING
+-----------------------------------------------------------------------------
+If you want to package your trained model for use in another app or for 
+cleaner storage, use the export script:
+
+   python scripts/export.py --weights runs/default_cpu/policy_last.pt
+
+* This saves a clean 'policy_agent.pt' and 'config.json' in the 'artifacts/' folder.
+
+-----------------------------------------------------------------------------
+6. VERIFICATION (Checking for bugs)
+-----------------------------------------------------------------------------
+To ensure the game rules and environment logic are working correctly:
+
+   pytest
+
+-----------------------------------------------------------------------------
+Developed for the Intelligent Omi Project.
+All logs and trained models are stored in the 'runs/' directory.
+=============================================================================
