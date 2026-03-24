@@ -81,14 +81,14 @@ class MAPPOTrainer:
     def update(self, transitions: List[dict]):
         if not transitions:
             return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
-        obs = torch.tensor([t["obs"] for t in transitions], dtype=torch.float32, device=self.device)
-        hist = torch.tensor([t["history"] for t in transitions], dtype=torch.float32, device=self.device)
-        masks = torch.tensor([t["action_mask"] for t in transitions], dtype=torch.float32, device=self.device)
+        obs = torch.tensor(np.array([t["obs"] for t in transitions]), dtype=torch.float32, device=self.device)
+        hist = torch.tensor(np.array([t["history"] for t in transitions]), dtype=torch.float32, device=self.device)
+        masks = torch.tensor(np.array([t["action_mask"] for t in transitions]), dtype=torch.float32, device=self.device)
         actions = torch.tensor([t["action"] for t in transitions], dtype=torch.long, device=self.device)
         old_logprobs = torch.tensor([t["logprob"] for t in transitions], dtype=torch.float32, device=self.device)
         returns = torch.tensor([t["return"] for t in transitions], dtype=torch.float32, device=self.device)
         advantages = torch.tensor([t["advantage"] for t in transitions], dtype=torch.float32, device=self.device)
-        states = torch.tensor([t["central_state"] for t in transitions], dtype=torch.float32, device=self.device)
+        states = torch.tensor(np.array([t["central_state"] for t in transitions]), dtype=torch.float32, device=self.device)
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
