@@ -6,6 +6,21 @@ This guide provides the exact commands needed to train, evaluate, and use
 your Intelligent Omi AI agents.
 
 -----------------------------------------------------------------------------
+0. SETTING UP ON A NEW PC (First Time Only)
+-----------------------------------------------------------------------------
+If you just copied this project to a new computer:
+
+1. Install Python (Version 3.8 or higher is required).
+2. Open a terminal (CMD, PowerShell, or Bash) in the project folder.
+3. Install the AI libraries by running:
+   
+   pip install -r requirements.txt
+
+4. Verify it works by running a 10-second "smoke test":
+
+   python scripts/train.py --config configs/small.yaml
+
+-----------------------------------------------------------------------------
 1. INSTALLATION & SETUP
 -----------------------------------------------------------------------------
 First, ensure you have the required libraries installed:
