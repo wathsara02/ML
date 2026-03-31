@@ -8,7 +8,7 @@
 seed: 42
 
 # Hardware: "cpu" or "cuda"
-device: cpu
+device: cuda
 
 # ---------------------------------------------------------------------------
 # Model architecture
@@ -24,11 +24,11 @@ model:
 algo:
   lr: 0.0003              # Adam learning rate (shared for policy & critic)
   clip_range: 0.2         # PPO clipping epsilon
-  entropy_coef: 0.02      # entropy bonus coefficient (encourages exploration)
+  entropy_coef: 0.05      # entropy bonus coefficient (encourages exploration)
   value_coef: 0.5         # value loss coefficient in combined loss
   gae_lambda: 0.95        # GAE lambda (bias-variance trade-off)
   gamma: 0.99             # discount factor
-  batch_size: 128         # mini-batch size per PPO epoch
+  batch_size: 256         # mini-batch size per PPO epoch
   ppo_epochs: 4           # number of PPO update epochs per episode batch
   max_grad_norm: 0.5      # gradient clipping norm
 
@@ -36,7 +36,8 @@ algo:
 # Training loop
 # ---------------------------------------------------------------------------
 training:
-  episodes: 10000         # total self-play episodes
+  episodes: 100000         # total self-play episodes
+  num_envs: 12             # Set > 1 (e.g., 32) to use high-cpu Vectorized Environments
   exp_name: default_cpu   # run directory name under runs/
   log_interval: 1000      # log & write CSV every N episodes (block_size = episodes / 10 if 0)
 
@@ -44,10 +45,10 @@ training:
 # Reward Shaping — tune these values to change agent behaviour
 # ---------------------------------------------------------------------------
 reward_shaping:
-  enabled: false          # set to true to use these shaped rewards
+  enabled: true          # set to true to use these shaped rewards
   illegal_action_penalty: -0.1 # subtracted when agent picks an illegal action
-  overplay_penalty: -0.05      # subtracted when an agent trumps its own team (takes trick from teammate)
-  trick_reward: 0.1            # added to both teammates when their team wins a trick
+  overplay_penalty: -0.2       # subtracted when an agent trumps its own team (takes trick from teammate)
+  trick_reward: 0.2            # added to both teammates when their team wins a trick
   cap_bonus: 0.5               # added when winning team captures all 8 tricks (A "Cap")
   declarer_bonus: 0.1          # added to the trump declarer on a win
   cap_penalty: -0.5            # subtracted when the losing team was swept (0 tricks)

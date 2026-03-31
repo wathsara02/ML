@@ -88,9 +88,12 @@ def main():
     parser.add_argument("--episodes", type=int, default=50)
     parser.add_argument("--baseline", type=str, choices=["rule", "random"], default="rule")
     parser.add_argument("--deterministic", action="store_true")
+    parser.add_argument("--seed", type=int, default=None, help="Override config seed")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    if args.seed is not None:
+        cfg["seed"] = args.seed
     set_seed(cfg["seed"])
     device = get_device(cfg.get("device", "cpu") == "cuda")
     policy = load_policy(cfg, device, args.weights)

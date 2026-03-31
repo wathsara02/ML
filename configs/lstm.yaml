@@ -7,9 +7,9 @@
 
 model:
   recurrent_type: lstm         # Enable LSTM memory
-  recurrent_hidden_size: 128   # LSTM hidden units
-  critic_hidden_size: 128
+  recurrent_hidden_size: 256   # LSTM hidden units
+  critic_hidden_size: 256
 
 training:
-  episodes: 10000
+  episodes: 100000
   exp_name: lstm_cpu

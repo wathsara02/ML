@@ -54,6 +54,9 @@ ENV/
 
 # My project specific
 runs/
+artifacts/
+*.pt
+*.csv
 test_results.txt
 out.log
 test_debug.txt

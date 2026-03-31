@@ -35,59 +35,133 @@ class MAPPOTrainer:
         self.gae_lambda = config["gae_lambda"]
 
     def collect_episode(self, env) -> Tuple[List[dict], dict]:
-        buffer = AgentBuffer(self.gamma, self.gae_lambda, self.device)
-        obs_dict = env.reset()
-        done = False
+        is_vector = hasattr(env, "num_envs")
+        num_envs = getattr(env, "num_envs", 1)
+        
+        buffers = [AgentBuffer(self.gamma, self.gae_lambda, self.device) for _ in range(num_envs)]
+        
+        # Initialise one hidden state per agent per env
+        hidden_states = [
+            {i: self.policy.init_hidden(1, self.device) for i in range(4)}
+            for _ in range(num_envs)
+        ]
 
-        # Initialise one hidden state per agent; reset at episode start
-        hidden_states = {
-            i: self.policy.init_hidden(1, self.device) for i in range(4)
-        }
+        if is_vector:
+            env.reset()
+            active_envs = list(range(num_envs))
+        else:
+            env.reset()
+            active_envs = [0]
+            
+        episode_infos = []
 
-        while not done:
-            agent_name = env.agent_selection
-            agent_id = int(agent_name.split("_")[1])
-            obs = env.observe(agent_name)
-            obs_tensor = torch.from_numpy(obs["observation"]).float().unsqueeze(0).to(self.device)
-            hist_tensor = torch.from_numpy(obs["history"]).float().unsqueeze(0).to(self.device)
-            mask_tensor = torch.from_numpy(obs["action_mask"]).float().unsqueeze(0).to(self.device)
+        while active_envs:
+            # Get acting agent names
+            if is_vector:
+                agent_names = env.agent_selection(active_envs)
+                obs_list = env.observe(agent_names, active_envs)
+            else:
+                agent_names = [env.agent_selection]
+                obs_list = [env.observe(agent_names[0])]
+                
+            agent_ids = [int(name.split("_")[1]) for name in agent_names]
+
+            # Stack observations
+            obs_tensor = torch.from_numpy(np.array([o["observation"] for o in obs_list])).float().to(self.device)
+            hist_tensor = torch.from_numpy(np.array([o["history"] for o in obs_list])).float().to(self.device)
+            mask_tensor = torch.from_numpy(np.array([o["action_mask"] for o in obs_list])).float().to(self.device)
+
+            # Stack hidden states for active agents
+            h_list, c_list = [], []
+            for env_idx, a_id in zip(active_envs, agent_ids):
+                h, c = hidden_states[env_idx][a_id]
+                h_list.append(h)
+                c_list.append(c)
+                
+            batch_hidden = (torch.cat(h_list, dim=1), torch.cat(c_list, dim=1))
 
             with torch.no_grad():
                 logits, new_hidden = self.policy(
                     obs_tensor, hist_tensor,
-                    hidden_states[agent_id],
+                    batch_hidden,
                     action_mask=mask_tensor,
                 )
-                hidden_states[agent_id] = new_hidden
-                action, probs = masked_sample(logits, mask_tensor, deterministic=False)
-                logprob = torch.log(torch.gather(probs, -1, action.unsqueeze(-1)).squeeze(-1) + 1e-8)
-                central_state = encode_central_state(env.state()).to(self.device)
-                value = self.critic(central_state.unsqueeze(0))
+                
+                # Unpack and store new hidden states
+                new_h, new_c = new_hidden
+                for i, (env_idx, a_id) in enumerate(zip(active_envs, agent_ids)):
+                    hidden_states[env_idx][a_id] = (
+                        new_h[:, i:i+1, :].clone(), # Keep batch dimension for LSTM compat
+                        new_c[:, i:i+1, :].clone()
+                    )
+                
+                # Sample actions
+                actions, probs = masked_sample(logits, mask_tensor, deterministic=False)
+                logprobs = torch.log(torch.gather(probs, -1, actions.unsqueeze(-1)).squeeze(-1) + 1e-8)
+                
+                # Central state value
+                if is_vector:
+                    env_states = env.get_state(active_envs)
+                else:
+                    env_states = [env.state()]
+                    
+                central_states = torch.stack([encode_central_state(s) for s in env_states]).to(self.device)
+                values = self.critic(central_states) # shape (N, 1) or (N,)
+                if values.dim() > 1: values = values.squeeze(-1)
 
-            transition = {
-                "obs": obs["observation"],
-                "history": obs["history"],
-                "action_mask": obs["action_mask"],
-                "action": action.item(),
-                "logprob": logprob.item(),
-                "value": value.item(),
-                "reward": 0.0,  # filled after env step/finalize
-                "done": False,
-                "agent_id": agent_id,
-                "central_state": central_state.cpu().numpy(),
-            }
-            buffer.add(agent_id, transition)
+            actions_np = actions.cpu().numpy()
 
-            env.step(int(action.item()))
-            buffer.storage[agent_id][-1]["reward"] = env.rewards.get(agent_name, 0.0)
-            done = all(env.terminations.values())
+            # Add to buffers
+            for i, (env_idx, a_id) in enumerate(zip(active_envs, agent_ids)):
+                transition = {
+                    "obs": obs_list[i]["observation"],
+                    "history": obs_list[i]["history"],
+                    "action_mask": obs_list[i]["action_mask"],
+                    "action": actions_np[i].item(),
+                    "logprob": logprobs[i].item(),
+                    "value": values[i].item(),
+                    "reward": 0.0,
+                    "done": False,
+                    "agent_id": a_id,
+                    "central_state": central_states[i].cpu().numpy(),
+                }
+                buffers[env_idx].add(a_id, transition)
 
-        final_rewards = {i: env.rewards[f"player_{i}"] for i in range(4)}
-        buffer.finalize(final_rewards)
-        transitions = buffer.compute_advantages()
-        episode_info = next(iter(env.infos.values())) if env._terminated else {}
-        buffer.clear()
-        return transitions, episode_info
+            # Step environments
+            if is_vector:
+                env.step(actions_np.tolist(), active_envs)
+                rewards_list = env.get_rewards(active_envs)
+                terminations_list = env.get_terminations(active_envs)
+            else:
+                env.step(int(actions_np[0].item()))
+                rewards_list = [env.rewards]
+                terminations_list = [env.terminations]
+
+            # Assign rewards and handle dones
+            next_active_envs = []
+            for i, (env_idx, a_id) in enumerate(zip(active_envs, agent_ids)):
+                buffers[env_idx].storage[a_id][-1]["reward"] = rewards_list[i].get(agent_names[i], 0.0)
+                
+                done = all(terminations_list[i].values())
+                if done:
+                    final_rewards = {j: rewards_list[i][f"player_{j}"] for j in range(4)}
+                    buffers[env_idx].finalize(final_rewards)
+                    if is_vector:
+                        episode_infos.append(next(iter(env.get_infos([env_idx])[0].values()), {}))
+                    else:
+                        episode_infos.append(next(iter(env.infos.values()), {}))
+                else:
+                    next_active_envs.append(env_idx)
+                    
+            active_envs = next_active_envs
+
+        # Aggregate transitions from all buffers
+        all_transitions = []
+        for b in buffers:
+            all_transitions.extend(b.compute_advantages())
+            b.clear()
+            
+        return all_transitions, episode_infos
 
     def update(self, transitions: List[dict]):
         if not transitions:
