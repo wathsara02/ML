@@ -23,6 +23,8 @@ model:
 # ---------------------------------------------------------------------------
 algo:
   lr: 0.0003              # Adam learning rate (shared for policy & critic)
+  lr_min: 0.00001         # minimum LR at end of training (linear annealing floor)
+  lr_annealing: true      # linearly decay LR from lr → lr_min over all episodes
   clip_range: 0.2         # PPO clipping epsilon
   entropy_coef: 0.05      # entropy bonus coefficient (encourages exploration)
   value_coef: 0.5         # value loss coefficient in combined loss
@@ -36,10 +38,11 @@ algo:
 # Training loop
 # ---------------------------------------------------------------------------
 training:
-  episodes: 100000         # total self-play episodes
+  episodes: 10000000         # total self-play episodes
   num_envs: 12             # Set > 1 (e.g., 32) to use high-cpu Vectorized Environments
   exp_name: default_cpu   # run directory name under runs/
   log_interval: 1000      # log & write CSV every N episodes (block_size = episodes / 10 if 0)
+  checkpoint_interval: 500 # save a resumable checkpoint every N episodes
 
 # ---------------------------------------------------------------------------
 # Reward Shaping — tune these values to change agent behaviour

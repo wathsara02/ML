@@ -11,5 +11,6 @@ model:
   critic_hidden_size: 256
 
 training:
-  episodes: 100000
+  episodes: 10000000
   exp_name: lstm_cpu
+  checkpoint_interval: 2500

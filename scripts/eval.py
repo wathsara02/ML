@@ -27,7 +27,14 @@ from utils import (
 
 def load_policy(cfg: dict, device: torch.device, weights: str):
     policy, _, _ = build_policy(cfg, device)
-    policy.load_state_dict(torch.load(weights, map_location=device, weights_only=True))
+    ckpt = torch.load(weights, map_location=device, weights_only=False)
+    # Support both full checkpoints (checkpoint_latest.pt) and plain state dicts (policy_last.pt)
+    if isinstance(ckpt, dict) and "policy_state_dict" in ckpt:
+        state_dict = ckpt["policy_state_dict"]
+        print(f"[EVAL] Loaded from full checkpoint (episode {ckpt.get('episode', '?')})")
+    else:
+        state_dict = ckpt
+    policy.load_state_dict(state_dict)
     policy.eval()
     return policy
 

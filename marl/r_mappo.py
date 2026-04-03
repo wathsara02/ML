@@ -33,6 +33,19 @@ class MAPPOTrainer:
         self.max_grad_norm = config.get("max_grad_norm", 0.5)
         self.gamma = config["gamma"]
         self.gae_lambda = config["gae_lambda"]
+        self.initial_lr = config["lr"]
+        self.lr_min = config.get("lr_min", 1e-5)
+        self.lr_annealing = config.get("lr_annealing", True)
+
+    def anneal_lr(self, fraction: float) -> None:
+        """Linearly decay LR from initial_lr → lr_min as fraction goes 0 → 1."""
+        if not self.lr_annealing:
+            return
+        new_lr = self.initial_lr + fraction * (self.lr_min - self.initial_lr)
+        for pg in self.optimizer_pi.param_groups:
+            pg["lr"] = new_lr
+        for pg in self.optimizer_v.param_groups:
+            pg["lr"] = new_lr
 
     def collect_episode(self, env) -> Tuple[List[dict], dict]:
         is_vector = hasattr(env, "num_envs")

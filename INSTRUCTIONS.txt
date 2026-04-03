@@ -36,10 +36,11 @@ to improve its strategy.
 A) Run a Full Training Session (Feed-Forward, standard):
    python scripts/train.py
 
-   * By default, this runs for 10,000 episodes using 'configs/default.yaml'.
+   * By default, this runs for 10,000,000 episodes using 'configs/default.yaml'.
    * Results and model weights are saved in: runs/default_cpu/
-   * Checkpoints are automatically saved at 1/3, 2/3, and the final episode 
+   * Checkpoints are automatically saved at 1/3, 2/3, and the final episode
      so you can test "Easy", "Medium", and "Hard" versions of your AI!
+   * A resumable checkpoint is also saved every 500 episodes (see section 2D).
 
 B) Run with LSTM (recommended for smarter agents):
    python scripts/train.py --config configs/lstm.yaml
@@ -53,6 +54,22 @@ C) Run a Quick Smoke-Test (Fast):
 
    * This runs a very short session (20 episodes) to verify everything works.
 
+D) STOP and RESUME Training (Checkpoint/Resume):
+   Training automatically saves a resumable checkpoint every 500 episodes to:
+   runs/default_cpu/checkpoint_latest.pt
+
+   To resume after stopping (Ctrl+C or any interruption):
+   python scripts/train.py --resume
+
+   To resume with a specific config:
+   python scripts/train.py --config configs/default.yaml --resume
+
+   If a checkpoint is found but you do NOT pass --resume, training will start
+   from scratch but warn you that a checkpoint exists.
+
+   To change how often checkpoints are saved, edit 'training -> checkpoint_interval'
+   in configs/default.yaml (currently set to 500 episodes).
+
 -----------------------------------------------------------------------------
 3. TUNING THE AI (Changing Rewards & Rules)
 -----------------------------------------------------------------------------
@@ -63,7 +80,10 @@ You can change the AI's "personality" by editing 'configs/default.yaml'.
   - Penalties should be NEGATIVE (e.g., illegal_action_penalty: -0.1).
   - Rewards should be POSITIVE (e.g., trick_reward: 0.1).
 
-* To change EPISODES: Edit 'training -> episodes' (10,000 is a good start).
+* To change EPISODES: Edit 'training -> episodes' (10,000,000 is the current setting).
+
+* To change CHECKPOINT INTERVAL: Edit 'training -> checkpoint_interval' (default: 500).
+  This controls how often a resume-able checkpoint is saved to checkpoint_latest.pt.
 
 * To train FASTER (Vectorized Environments): Edit 'training -> num_envs'.
   - Set to 1 for basic testing (1 background game).

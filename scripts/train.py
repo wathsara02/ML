@@ -98,9 +98,52 @@ def log_block(progress_pct, episodes_done, total_episodes, block_count, team_a, 
     write_csv_row(csv_path, headers, row)
 
 
+def save_checkpoint(path: Path, trainer, ep: int, totals: dict):
+    """Save full training state so we can resume later."""
+    torch.save({
+        "episode": ep,
+        "policy_state_dict": trainer.policy.state_dict(),
+        "critic_state_dict": trainer.critic.state_dict(),
+        "optimizer_pi_state_dict": trainer.optimizer_pi.state_dict(),
+        "optimizer_v_state_dict": trainer.optimizer_v.state_dict(),
+        "totals": {
+            "team_a": totals["team_a"],
+            "team_b": totals["team_b"],
+            "illegal": totals["illegal"],
+            # lengths list can be huge; save just the count to keep file small
+            "lengths_count": len(totals["lengths"]),
+            "lengths_sum": sum(totals["lengths"]),
+        },
+    }, path)
+    print(f"[CHECKPOINT] Saved to {path} (episode {ep})")
+
+
+def load_checkpoint(path: Path, trainer):
+    """Load training state in-place. Returns (episode, totals) tuple."""
+    ckpt = torch.load(path, map_location=trainer.device)
+    trainer.policy.load_state_dict(ckpt["policy_state_dict"])
+    trainer.critic.load_state_dict(ckpt["critic_state_dict"])
+    trainer.optimizer_pi.load_state_dict(ckpt["optimizer_pi_state_dict"])
+    trainer.optimizer_v.load_state_dict(ckpt["optimizer_v_state_dict"])
+    ep = ckpt["episode"]
+    raw = ckpt["totals"]
+    # Reconstruct totals; lengths list is approximated from saved sum/count
+    avg_len = raw["lengths_sum"] / raw["lengths_count"] if raw["lengths_count"] > 0 else 0.0
+    totals = {
+        "team_a": raw["team_a"],
+        "team_b": raw["team_b"],
+        "illegal": raw["illegal"],
+        "lengths": [avg_len] * raw["lengths_count"],
+    }
+    print(f"[CHECKPOINT] Resumed from {path} at episode {ep}")
+    return ep, totals
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="configs/default.yaml")
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume from checkpoint_latest.pt in the run directory if it exists")
     args = parser.parse_args()
     cfg = load_config(args.config)
     set_seed(cfg["seed"])
@@ -118,15 +161,26 @@ def main():
     ensure_dir(run_dir)
     csv_path = run_dir / "training_summary.csv"
 
+    # How often (in episodes) to save a resumable checkpoint
+    checkpoint_interval = cfg["training"].get("checkpoint_interval", 1000)
+    latest_ckpt_path = run_dir / "checkpoint_latest.pt"
+
     totals = {"team_a": 0, "team_b": 0, "lengths": [], "illegal": 0}
     block_stats = {"team_a": 0, "team_b": 0, "lengths": [], "illegal": 0, "count": 0, "traces": []}
 
     ep = 0
     num_envs = getattr(env, "num_envs", 1)
 
+    # ── Resume from checkpoint if requested (or auto-detect) ──────────────────
+    if latest_ckpt_path.exists() and args.resume:
+        ep, totals = load_checkpoint(latest_ckpt_path, trainer)
+    elif latest_ckpt_path.exists():
+        print(f"[CHECKPOINT] Found {latest_ckpt_path}. Run with --resume to continue from episode {torch.load(latest_ckpt_path, map_location='cpu')['episode']}.")
+
     while ep < total_episodes:
         transitions, infos = trainer.collect_episode(env)
         losses = trainer.update(transitions)
+        trainer.anneal_lr(ep / total_episodes)
         
         if not isinstance(infos, list):
             infos = [infos]
@@ -179,6 +233,12 @@ def main():
             torch.save(trainer.policy.state_dict(), run_dir / "policy_2_3.pt")
             torch.save(trainer.critic.state_dict(), run_dir / "critic_2_3.pt")
             print(f"Saved 2/3 checkpoint at episode {ep}")
+
+        # ── Periodic resumable checkpoint ──────────────────────────────────────
+        prev_interval = (ep - num_envs) // checkpoint_interval
+        curr_interval = ep // checkpoint_interval
+        if curr_interval > prev_interval:
+            save_checkpoint(latest_ckpt_path, trainer, ep, totals)
 
     # Final summary
     total_len = sum(totals["lengths"]) / len(totals["lengths"]) if totals["lengths"] else 0.0
